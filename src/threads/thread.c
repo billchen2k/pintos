@@ -14,6 +14,7 @@
 #include "fixed_point.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "userprog/syscall.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -95,7 +96,9 @@ thread_init (void)
   lock_init(&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
+  
+  /* ++ 2 */
+  lock_init(&filesys_lock);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -187,6 +190,15 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  /* ++2 */
+   struct child_process* c = malloc(sizeof(*c));
+  c->tid = tid;
+  c->exit_status = t->exit_status;
+  c->if_waited = false;
+  sema_init (&(c->wait_sema), 0);
+  list_push_back (&running_thread()->children_list, &c->child_elem);
+
   
   /* ++ Set blocked ticks to 0 */
   t->blocked_ticks = 0;
@@ -304,6 +316,14 @@ void
 thread_exit (void) 
 {
   ASSERT (!intr_context ());
+  /* ++2 System Call */
+    enum intr_level old_level = intr_disable();
+  if (thread_current()->parent->waiting_child != NULL)
+  {
+    if (thread_current()->parent->waiting_child->tid == thread_current()->tid)
+      sema_up(&thread_current()->parent->waiting_child->wait_sema);
+  }
+  intr_set_level(old_level);
 
 #ifdef USERPROG
   process_exit ();
@@ -512,6 +532,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->nice = 0;
   t->recent_cpu = FP_CONST(0);
 
+ /* ++ 2 */
+
+  list_init (&t->children_list);
+  t->parent = running_thread();
+  list_init (&t->opened_files);
+  t->fd_count=2;
+  t->exit_status = INIT_EXIT_STAT;
+  sema_init(&t->load_sema,0);
+  t->waiting_child=NULL;
+  t->self=NULL;
   list_insert_ordered(&all_list, &t->allelem, (list_less_func *)&compare_priority, NULL);
 }
 
@@ -629,6 +659,37 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
+/* ++2 System Call */
+
+
+bool
+cmp_waketick(struct list_elem *first, struct list_elem *second, void *aux)
+{
+  struct thread *fthread = list_entry (first, struct thread, elem);
+  struct thread *sthread = list_entry (second, struct thread, elem);
+  return fthread->waketick < sthread->waketick;
+
+}
+
+/* ++2 System Call */
+struct list_elem *
+find_child_proc(tid_t child_tid)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  struct list_elem *tmp_e;
+
+  for (tmp_e = list_begin (&thread_current()->children_list); tmp_e != list_end (&thread_current()->children_list);
+          tmp_e = list_next (tmp_e))
+      {
+        struct child_process *f = list_entry (tmp_e, struct child_process, child_elem);
+        if(f->tid == child_tid)
+        {
+          return tmp_e;
+        }
+      }
+  return NULL;
+}
 
 /* ++ Check if the thread should be unblocked as it's 
     blocked ticks reached to 0. */

@@ -4,7 +4,10 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <kernel/list.h>
 #include "fixed_point.h"
+
+#include <threads/synch.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -25,8 +28,12 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-/* A kernel thread or user process.
 
+/* ++ 2 */
+struct lock filesys_lock; //a global lock on filesystem operations, to ensure thread safety.
+#define INIT_EXIT_STAT -2333 /* A kernel thread or user process.
+
+/*
    Each thread structure is stored in its own 4 kB page.  The
    thread structure itself sits at the very bottom of the page
    (at offset 0).  The rest of the page is reserved for the
@@ -104,6 +111,20 @@ struct thread
     int nice; /* Niceness. */
     fixed_t recent_cpu;
 
+
+    /* ++ 2 */
+      int64_t waketick;
+    bool load_success;  //if the child process is loaded successfully
+    struct semaphore load_sema;   // semaphore to keep the thread waiting until it makes sure whether the child process if successfully loaded.
+    int exit_status;    
+    struct list children_list;
+    struct thread* parent;   
+    struct file *self;  // its executable file
+    struct list opened_files;     //all the opened files
+    int fd_count;
+    //struct semaphore child_lock;
+    struct child_process * waiting_child;  //pid of the child process it is currently waiting
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -113,6 +134,18 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+/* ++ 2 */
+  struct child_process {
+      int tid;
+      struct list_elem child_elem;   // element of itself point to its parent's child_list
+      int exit_status;   //store its exit status to pass it to its parent 
+          
+      /*whether the child process has been waited()
+      according to the document: a process may wait for any given child at most once.
+      if_waited would be initialized to false*/
+      bool if_waited;
+      struct semaphore wait_sema;
+    };
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -165,4 +198,12 @@ void thread_mlfqs_update_priority(struct thread *);
 void thread_mlfqs_update_load_avg_and_recent_cpu(void);
 void thread_mlfqs_increase_recent_cpu_by_one(void);
 
+
+/* ++ 2 */
+bool cmp_waketick(struct list_elem *first, struct list_elem *second, void *aux);
+
 #endif /* threads/thread.h */
+/* ++ 2 */
+#ifdef USERPROG
+struct list_elem *find_children_list(tid_t child_tid);
+#endif
