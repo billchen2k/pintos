@@ -1,6 +1,6 @@
 
 
-# PINTOS 实验报告
+# PINTOS Project Designdoc
 
 > 10185101210 陈俊潼, East China Normal University
 > 2019.12
@@ -132,7 +132,7 @@ make: *** [check] Error 1
 - 应当为每一个函数写明注释
 - 不要使用 `strcpy()`、`strcat()`、`sprintf()`等不安全的函数
 
-### 版本管理
+### 版本管理      
 
 为了方便维护项目完成进度，或者在出现无法解决的问题是回滚至旧版代码，将整个项目文件夹托管到 GitHub 上。
 
@@ -140,7 +140,7 @@ make: *** [check] Error 1
 
 项目 GitHub 地址：[https://github.com/BillChen2000/Pintos](https://github.com/BillChen2000/Pintos)。
 
-## Project 1
+## Project 1: Threads
 
 ### Overview
 
@@ -159,10 +159,6 @@ tests/：每个 Project 的测试案例
 examples/：在 Projcet 2 的一些案例
 misc/ & utils/：官方不推荐修改的两个文件夹
 ```
-
-而浏览 Pintos 的官方文档可以了解到 thread 目录下具有的文件包含以下功能：
-
-//todo
 
 除此之外，浏览官方文档的附录 Debugging Tools，了解到两个常用的调试工具的用法。第一个是`ASSERT`，官方的描述如下：
 
@@ -830,7 +826,7 @@ bool cond_sema_cmp_priority(const struct list_elem *a, const struct list_elem *b
 7 of 27 tests failed.
 ```
 
-### Mission 3: Advanced Scheduler
+### Mission 3: Advanced Scheduler (高级调度问题)
 
 #### Requirements
 
@@ -1111,4 +1107,160 @@ int thread_get_recent_cpu(void) {
 >算法是无止境的，总会有更优的算法来解决问题，这也是我在修改操作系统中的一大体会。为了满足更加复杂的需求，实现更加智能与合理的调度，需要不断完善操作系统的数据结构和运行原理才能做到。通过学习前人的思路与逻辑，“踩在巨人的肩膀上”，我也理解到现有的这些算法都是无数前人智慧的结晶，最终才能融合出一个成熟的操作系统。
 >
 >其次，这也是我第一次接触到这么底层的代码。虽然 pintos 的结构相比成熟的操作系统而言还非常简单，但尝试阅读这个操作系统代码的过程还是i让我对整个操作系统的架构都有了更清晰的认识。在这之前，操作系统对我来说还是一块完全陌生而不敢触及的领域。经历过无数次无法成功 make 的绝望之后最后改出结果的成就感也是前所未有的。
+
+## Project 2: User Programs
+
+### Overview
+
+该开始着手研究允许运行用户程序的系统部分了。基本代码已经支持加载和运行用户程序，但是无法进行I / O或交互。在此项目中，将使程序能够通过系统调用与 OS 进行交互，并为用户进程提供系统调用。在 Project 1 中，执行的操作都是在内核模式下运行的，而在这个 Project 中要求我们对非内核进行修改。
+
+对于 Project 2 主要修改的`userprog`目录，官方文档对目录下的主要文件有以下解释：
+
+| File        | Note                                |
+| ----------- | ----------------------------------- |
+| process.c   | 用于加载 ELF 二进制文件和初始化进程 |
+| pagedir.c   | 一个页表的管理文件                  |
+| syscall.c   | 包含了系统调用函数的文件            |
+| exception.c | 用于处理用户程序的非法操作的文件    |
+| gdt.c       | Global Descriptor Table (GDT)       |
+| tss.c       | Task-State Segement 任务状态块      |
+
+这个部分不需要用到之前在 Project 1 中已经完成的线程部分。
+
+由于用户程序需要使用文件系统来进行加载，所以也需要了解一下 Pintos 中文件系统的实现。对于 Pintos 中的文件系统，是在`filesys`目录下实现的，已经为我们提供了一个简单的实现方式。为了正确的使用文件系统内，需要注意的有以下几点：
+
+- 没有内部同步机制。也就是两个同时出现的访问会出现问题；
+- 文件大小在创建的时候已经固定；
+- 文件数据是整块分配的；
+- 没有子目录；
+- 文件名最长为 14 个字符；
+- 系统崩溃可能会导致文件无法自动修复；
+
+例如，可以使用以下命令创建一个磁盘文件：
+
+```shell
+pintos-mkdisk filesys.dsk --filesys-size=2 
+pintos -f -q
+pintos -p ../../examples/echo -a echo -- -q 
+pintos -q run ’echo x’
+```
+
+命令`pintos -p`和命令`pintos -g`提供了将文件添加进 pintos 和从 pintos 中获取的方法。
+
+![image-20200101145213003](Report.assets/image-20200101145213003.png)
+
+继续了解用户程序在 Pintos 中的执行方式。在 Pintos 中可以执行正常的 C 语言程序，只要符合内存大小的要求并且没有调用没有实现的系统调用。注意`malloc()`函数是无法使用的。在`src/example`目录下具有一些简单的用户程序的实例，我们可以把这些程序编译进自己的程序。
+
+此外，Pintos 还可以加载 `ELF`可执行文件，使用在`userprog/process.c`中的加载器加载。
+
+在 Pintos 中的每一个进程都具有如下的虚拟内存结构：
+
+> 虚拟内存结构
+>
+> ![image-20200101144135628](Report.assets/image-20200101144135628.png)
+
+在 Project 2 中，`user stack`的大小是固定的。代码段开始的虚拟地址为`0x08048000`，大概有 128 M 的大小。如果想要查看某一个特定可执行难文件的结构，可以执行`-p objdump`命令查看。
+
+对于系统调用中内存访问的部分，需要注意的是用农户可能传递过一个空指针，或者一个内核空间的指针，这些行为都是不被允许的。需要我们在以后的实现中注意。
+
+我将按照官方文档建议的执行顺序完成 Project，即首先完成参数传递的部分（这样才能避免每一个用户程序都出现页错误），然后完成用户内存访问，然后完成系统调用中的基础函数和`exit()`系统调用，最后完成`write()`系统调用。最后把	`process_wait()`改成一个无限的循环。
+
+### Mission 1 Process Termination Messages (进程终止消息)
+
+#### Requirements
+
+当一个用户进程终止的时候，会调用`exit()`函数，并且打印当前进程名和退出代号。其中，终止消息必须按照以下格式打印：
+
+```c
+printf("%s: exit(%d)\n")
+```
+
+其中，进程的名称必须和传递给`process_execute()`的参数一样，并忽略命令行参数。
+
+需要注意的是，当内核线程终止或者`halt`调用的时候不应当打印这些信息，而当进程加载失败的时候，这些消息应当是一个可选项。除了这条消息以外不应当打印任何额外的信息，否则会降低评分脚本给出的评分。
+
+#### Analysis
+
+既然要打印返回值，就得用一个变量保存返回值，于是可以在每个线程的结构体`thread`中加入一个数据结构`ret`用于存储返回值，并且在`init_thread()`的时候将初始化设置为 0
+
+而当线程退出的时候，需要将返回值保存到`ret`中，可以在系统调用`exit()`函数的时候保存。
+
+考虑到每个现车航结束的时候，都一定会调用`thread_exit()`函数。观察这个函数的代码：
+
+```c
+/* Deschedules the current thread and destroys it.  Never
+   returns to the caller. */
+void
+thread_exit (void)
+{
+  ASSERT (!intr_context ());
+
+#ifdef USERPROG
+  process_exit ();
+#endif
+
+  /* Remove thread from all threads list, set our status to dying,
+     and schedule another process.  That process will destroy us
+     when it calls thread_schedule_tail(). */
+  intr_disable ();
+  list_remove (&thread_current()->allelem);
+  thread_current ()->status = THREAD_DYING;
+  schedule ();
+  NOT_REACHED ();
+}
+```
+
+在前面的文档中已经了解到**每个用户进程只有一个线程，而内核进程具有多个线程。**所以如果是用户进程，这里会调用	`process_exit()`函数直接终止掉整个进程。如果是用户进程，则页表一定不是空，也就是`pd!=NULL`成立。所以可以在`process_exit()`函数中加入打印语句即可。
+
+### Interlude: 针对 macOS 的额外修改
+
+这里发现在 `userprog`下尝试 `make`的时候，始终会提示无法成功：
+
+![image-20200101155039280](Report.assets/image-20200101155039280.png)
+
+发现在`pintos_mac`的原作者`ISSUE`页面有人提出了同样的问题（https://github.com/maojie/pintos_mac/issues/3）：
+
+![image-20200101154941657](Report.assets/image-20200101154941657.png)
+
+经过探索发现是由于`gcc-elf-i386`在`Catalina`系统下的链接出了问题。而另一位作者`fork`过去的库（https://github.com/jinmel/pintos_mac）对`Makefile.userprog`进行了进一步的完善，修改了对跨平台编译库中`lib.a`的引用，解决了该问题。在`GitHub Desktop`中检视所做的修改：
+
+![image-20200101155303044](Report.assets/image-20200101155303044.png)
+
+写死的`lib.a`目录会导致错误。替换了新的`Makefile.userprog`后，在`userprog`目录下再次运行make`即可成功：
+
+![image-20200101155428034](Report.assets/image-20200101155428034.png)
+
+#### Solution
+
+#### Result
+
+### Mission 2 Argument Passing (参数传递)
+
+#### Requirements
+
+#### Analysis
+
+#### Solution
+
+### Mission 3 System Calls (系统调用)
+
+#### Requirements
+
+#### Analysis
+
+#### Solution
+
+#### Result
+
+### Mission 4 Denying Writes to Executables (拒接写可执行文件)
+
+#### Requirements
+
+#### Analysis
+
+#### Solution
+
+#### Result
+
+### Remark
 
