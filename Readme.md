@@ -12,7 +12,9 @@ Working with **macOS** based on the vesion from [@maojie/pintos_mac](https://git
 - [x] Project 2.3 System Calls
 - [x] Project 2.4 Denying Writes to Executables
 
-To make and check in Linux, you'll need to replace /src/utils/* and /src/Makefile.* into the original Linux version of pintos, which can be aquired [here](http://www.scs.stanford.edu/10wi-cs140/pintos/pintos.tar.gz).
+Some earlier commits may require modificatoin for location of `kernel.o` & `loader.bin` at `utils/pintos` & `uitls/Pintos.pm`.
+
+To make and check on **Linux**, you'll need to replace `src/utils/*` and `src/Makefile.*` into the original Linux version of pintos, which can be aquired [here](http://www.scs.stanford.edu/10wi-cs140/pintos/pintos.tar.gz).
 
 ### Result
 
