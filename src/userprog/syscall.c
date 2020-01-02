@@ -109,8 +109,8 @@ exit_process(int status)
 	struct thread *cur_thread = thread_current();
 
 	enum intr_level old_level = intr_disable();
-	for (struct list_elem *e = list_begin(&cur_thread->parent->children_list); e != list_end(&cur_thread->parent->children_list); e = list_next(e))
-	{
+	struct list_elem *e;
+	for (e = list_begin(&cur_thread->parent->children_list); e != list_end(&cur_thread->parent->children_list); e = list_next(e)) {
 		cp = list_entry(e, struct child_process, child_elem);
 		if (cp->tid == cur_thread->tid)
 		{
@@ -142,8 +142,8 @@ struct process_file *
 search_fd(struct list* files, int fd)
 {
 	struct process_file *proc_f;
-	for (struct list_elem *e = list_begin(files); e != list_end(files); e = list_next(e))
-	{
+	struct list_elem *e;
+	for (e = list_begin(files); e != list_end(files); e = list_next(e)) {
 		proc_f = list_entry(e, struct process_file, elem);
 		if (proc_f->fd == fd)
 			return proc_f;

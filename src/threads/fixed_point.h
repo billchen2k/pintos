@@ -1,3 +1,6 @@
+#ifndef __THREAD_FIXED_POINT_H
+#define __THREAD_FIXED_POINT_H
+
 /* Basic definitions of fixed point. */
 typedef int fixed_t;
 /* 16 LSB used for fractional part. */
@@ -25,3 +28,5 @@ typedef int fixed_t;
 /* Get rounded integer of a fixed-point value. */
 #define FP_ROUND(A) (A >= 0 ? ((A + (1 << (FP_SHIFT_AMOUNT - 1))) >> FP_SHIFT_AMOUNT) \
 			    : ((A - (1 << (FP_SHIFT_AMOUNT - 1))) >> FP_SHIFT_AMOUNT))
+
+#endif /* thread/fixed_point.h */
